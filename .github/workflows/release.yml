@@ -52,14 +52,14 @@ jobs:
         run: flutter build apk --release
 
       - name: Preparar APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk nabu-v0.3.1.apk
+        run: cp build/app/outputs/flutter-apk/app-release.apk nabu-v0.4.0.apk
 
-      - name: Publicar Nabu v0.3.1
+      - name: Publicar Nabu v0.4.0
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.3.1 nabu-v0.3.1.apk \
+          gh release create v0.4.0 nabu-v0.4.0.apk \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Nabu v0.3.1" \
-            --notes "Corrige a conexão com o Turso no APK de produção ao incluir a permissão Android de internet. Também valida a URL e melhora as mensagens para falha de rede ou token recusado."
+            --title "Nabu v0.4.0" \
+            --notes "Adiciona setas retas e curvas com rotação, símbolos visuais, sincronização manual bidirecional e vários quadros independentes que podem ser criados, alternados e renomeados. Mantém ancoragem, imagens em retrato/paisagem e sincronização opcional com Turso."
