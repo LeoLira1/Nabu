@@ -26,13 +26,18 @@ jobs:
       - name: Gerar projeto Android
         run: flutter create --platforms=android --project-name=nabu .
 
-      - name: Configurar Android 7+
+      - name: Configurar Android 7+ e acesso à internet
         run: |
           if [ -f android/app/build.gradle.kts ]; then
             sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' android/app/build.gradle.kts
           elif [ -f android/app/build.gradle ]; then
             sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' android/app/build.gradle
           fi
+          manifest=android/app/src/main/AndroidManifest.xml
+          if ! grep -q 'android.permission.INTERNET' "$manifest"; then
+            sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET"/>' "$manifest"
+          fi
+          grep -q 'android.permission.INTERNET' "$manifest"
 
       - name: Instalar dependências
         run: flutter pub get
@@ -47,14 +52,14 @@ jobs:
         run: flutter build apk --release
 
       - name: Preparar APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk nabu-v0.3.0.apk
+        run: cp build/app/outputs/flutter-apk/app-release.apk nabu-v0.3.1.apk
 
-      - name: Publicar Nabu v0.3.0
+      - name: Publicar Nabu v0.3.1
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.3.0 nabu-v0.3.0.apk \
+          gh release create v0.3.1 nabu-v0.3.1.apk \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Nabu v0.3.0" \
-            --notes "Adiciona ancoragem individual para evitar movimentos acidentais, alternância de imagens entre retrato e paisagem e exibição completa sem cortar capas ou documentos."
+            --title "Nabu v0.3.1" \
+            --notes "Corrige a conexão com o Turso no APK de produção ao incluir a permissão Android de internet. Também valida a URL e melhora as mensagens para falha de rede ou token recusado."
