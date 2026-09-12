@@ -66,4 +66,54 @@ void main() {
     expect(image.imageBase64, 'AQIDBA==');
     expect(image.imageMimeType, 'image/png');
   });
+
+  test('item ancorado não se move até ser liberado', () async {
+    final controller = BoardController(
+      localStore: MemoryLocalStore(),
+      remoteStore: DisabledRemoteStore(),
+    );
+    await controller.initialize();
+    final item = controller.items.first;
+
+    controller.toggleLock(item.id);
+    controller.beginMove(item.id);
+    controller.moveBy(item.id, const Offset(50, 20));
+    controller.endMove(item.id);
+
+    expect(controller.items.first.isLocked, isTrue);
+    expect(controller.items.first.position, item.position);
+
+    controller.toggleLock(item.id);
+    controller.beginMove(item.id);
+    controller.moveBy(item.id, const Offset(50, 20));
+    controller.endMove(item.id);
+
+    expect(
+      controller.items.first.position,
+      item.position + const Offset(50, 20),
+    );
+  });
+
+  test('alterna imagem entre paisagem e retrato mantendo o centro', () async {
+    final controller = BoardController(
+      localStore: MemoryLocalStore(),
+      remoteStore: DisabledRemoteStore(),
+    );
+    await controller.initialize();
+    controller.addImage(
+      Uint8List.fromList(<int>[1, 2, 3, 4]),
+      const Offset(30, 40),
+    );
+    final before = controller.items.last;
+    final centerBefore = before.position +
+        Offset(before.size.width / 2, before.size.height / 2);
+
+    controller.toggleImageOrientation(before.id);
+    final after = controller.items.last;
+    final centerAfter =
+        after.position + Offset(after.size.width / 2, after.size.height / 2);
+
+    expect(after.size, const Size(220, 320));
+    expect(centerAfter, centerBefore);
+  });
 }

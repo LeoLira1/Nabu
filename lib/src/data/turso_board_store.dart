@@ -95,6 +95,7 @@ class TursoBoardStore implements RemoteBoardStore {
         imageBase64: (content['imageBase64'] as String?) ?? '',
         imageMimeType:
             (content['imageMimeType'] as String?) ?? 'image/jpeg',
+        isLocked: (content['isLocked'] as bool?) ?? false,
         createdAt: DateTime.parse(row['created_at']! as String),
         updatedAt: DateTime.parse(row['updated_at']! as String),
       );

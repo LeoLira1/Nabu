@@ -38,6 +38,7 @@ void main() {
       colorValue: 0xffffffff,
       imageBase64: 'AQIDBA==',
       imageMimeType: 'image/png',
+      isLocked: true,
       createdAt: DateTime.utc(2026, 9, 12),
       updatedAt: DateTime.utc(2026, 9, 12),
     );
@@ -47,5 +48,21 @@ void main() {
     expect(restored.type, BoardItemType.image);
     expect(restored.imageBase64, 'AQIDBA==');
     expect(restored.imageMimeType, 'image/png');
+    expect(restored.isLocked, isTrue);
+  });
+
+  test('itens antigos sem ancoragem continuam desbloqueados', () {
+    final json = BoardItem(
+      id: 'legacy',
+      type: BoardItemType.rectangle,
+      position: Offset.zero,
+      size: const Size(220, 120),
+      colorValue: 0xffffffff,
+      createdAt: DateTime.utc(2026, 9, 12),
+      updatedAt: DateTime.utc(2026, 9, 12),
+    ).toJson()
+      ..remove('isLocked');
+
+    expect(BoardItem.fromJson(json).isLocked, isFalse);
   });
 }

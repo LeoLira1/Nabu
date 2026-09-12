@@ -25,6 +25,8 @@ class BoardController extends ChangeNotifier {
 
   List<BoardItem> get items => List.unmodifiable(_items);
   String? get selectedId => _selectedId;
+  BoardItem? get selectedItem =>
+      _selectedId == null ? null : _itemById(_selectedId!);
   SyncState get syncState => _syncState;
   bool get loading => _loading;
   bool get canUndo => _undo.isNotEmpty;
@@ -127,12 +129,12 @@ class BoardController extends ChangeNotifier {
 
   void beginMove(String id) {
     final item = _itemById(id);
-    if (item != null) _moveStarts[id] = item.position;
+    if (item != null && !item.isLocked) _moveStarts[id] = item.position;
   }
 
   void moveBy(String id, Offset worldDelta) {
     final index = _items.indexWhere((item) => item.id == id);
-    if (index < 0) return;
+    if (index < 0 || _items[index].isLocked) return;
     _items[index] = _items[index].copyWith(
       position: _items[index].position + worldDelta,
       updatedAt: DateTime.now().toUtc(),
@@ -159,6 +161,34 @@ class BoardController extends ChangeNotifier {
     _checkpoint();
     _items[index] = _items[index].copyWith(
       text: text,
+      updatedAt: DateTime.now().toUtc(),
+    );
+    _changed(_items[index]);
+  }
+
+  void toggleLock(String id) {
+    final index = _items.indexWhere((item) => item.id == id);
+    if (index < 0) return;
+    _checkpoint();
+    _moveStarts.remove(id);
+    _items[index] = _items[index].copyWith(
+      isLocked: !_items[index].isLocked,
+      updatedAt: DateTime.now().toUtc(),
+    );
+    _changed(_items[index]);
+  }
+
+  void toggleImageOrientation(String id) {
+    final index = _items.indexWhere((item) => item.id == id);
+    if (index < 0 || _items[index].type != BoardItemType.image) return;
+    _checkpoint();
+    final item = _items[index];
+    final nextSize = Size(item.size.height, item.size.width);
+    final center = item.position +
+        Offset(item.size.width / 2, item.size.height / 2);
+    _items[index] = item.copyWith(
+      position: center - Offset(nextSize.width / 2, nextSize.height / 2),
+      size: nextSize,
       updatedAt: DateTime.now().toUtc(),
     );
     _changed(_items[index]);

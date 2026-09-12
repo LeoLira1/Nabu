@@ -4,16 +4,19 @@ O Nabu é um quadro visual infinito feito em Flutter/Dart. A primeira versão é
 local-first: abre imediatamente com os dados salvos no aparelho e pode
 sincronizar os elementos com um banco Turso.
 
-## Versão 0.1.0
+## Versão 0.3.0
 
 - quadro matematicamente navegável, sem `Container` gigante;
 - pan com mouse ou toque e zoom com pinça/botões;
 - criação de post-its, textos, retângulos e círculos;
 - seleção, movimentação, edição com toque duplo e exclusão;
+- ancoragem individual para impedir movimentos acidentais;
+- importação de imagens com alternância entre retrato e paisagem;
+- exibição completa da imagem, sem cortar capas e documentos;
 - desfazer e refazer;
 - mini mapa;
 - persistência local;
-- sincronização opcional com Turso;
+- configuração, teste e sincronização opcional com Turso dentro do app;
 - exclusão remota reversível por `deleted_at`;
 - testes e validação automática no GitHub Actions.
 
@@ -30,14 +33,15 @@ flutter run
 
 O workflow do GitHub executa essa preparação automaticamente.
 
-## Criar o banco no Turso
+## Conectar ao Turso
 
-Crie um banco novo no painel do Turso. Depois, no shell do Turso, aplique o
-conteúdo de `database/migrations/001_initial.sql`. Todas as instruções usam
-`CREATE TABLE IF NOT EXISTS` e `INSERT OR IGNORE`; nenhum dado existente é
-apagado.
+Toque no ícone de nuvem, informe a URL e o token do banco e use **Testar
+conexão**. O Nabu cria as tabelas ausentes automaticamente com instruções
+`CREATE TABLE IF NOT EXISTS`; nenhum dado existente é apagado. Depois, toque
+em **Salvar e conectar**. O token fica no armazenamento seguro do aparelho.
 
-Para executar o aplicativo conectado ao banco:
+Durante o desenvolvimento, também é possível fornecer as credenciais ao
+executar o aplicativo:
 
 ```bash
 flutter run \
@@ -69,4 +73,3 @@ database/
   migrations/   # schema versionado e reversível
 test/            # testes de modelo e operações do quadro
 ```
-

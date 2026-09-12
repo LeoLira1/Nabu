@@ -189,6 +189,8 @@ class _BoardScreenState extends State<BoardScreen> {
           });
         }
 
+        final selectedItem = controller.selectedItem;
+
         return ClipRect(
           child: Stack(
             children: <Widget>[
@@ -231,9 +233,19 @@ class _BoardScreenState extends State<BoardScreen> {
                 left: 16,
                 top: 18,
                 child: _ToolBar(
-                  hasSelection: controller.selectedId != null,
+                  selectedItem: selectedItem,
                   onAdd: _add,
                   onAddImage: _pickImage,
+                  onToggleLock: () {
+                    if (selectedItem != null) {
+                      controller.toggleLock(selectedItem.id);
+                    }
+                  },
+                  onToggleImageOrientation: () {
+                    if (selectedItem != null) {
+                      controller.toggleImageOrientation(selectedItem.id);
+                    }
+                  },
                   onDelete: controller.deleteSelected,
                 ),
               ),
@@ -269,15 +281,43 @@ class _BoardScreenState extends State<BoardScreen> {
           child: GestureDetector(
             onTap: () => controller.select(item.id),
             onDoubleTap: () => _edit(item),
-            onPanStart: (_) {
-              controller.select(item.id);
-              controller.beginMove(item.id);
-            },
-            onPanUpdate: (details) =>
-                controller.moveBy(item.id, details.delta / _scale),
-            onPanEnd: (_) => controller.endMove(item.id),
-            onPanCancel: () => controller.endMove(item.id),
-            child: _BoardItemView(item: item, selected: selected),
+            onPanStart: item.isLocked
+                ? null
+                : (_) {
+                    controller.select(item.id);
+                    controller.beginMove(item.id);
+                  },
+            onPanUpdate: item.isLocked
+                ? null
+                : (details) =>
+                    controller.moveBy(item.id, details.delta / _scale),
+            onPanEnd:
+                item.isLocked ? null : (_) => controller.endMove(item.id),
+            onPanCancel:
+                item.isLocked ? null : () => controller.endMove(item.id),
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                _BoardItemView(item: item, selected: selected),
+                if (item.isLocked)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(5),
+                      decoration: const BoxDecoration(
+                        color: Color(0xdd202833),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.lock_rounded,
+                        size: 15,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
@@ -422,15 +462,19 @@ class _TopBar extends StatelessWidget {
 
 class _ToolBar extends StatelessWidget {
   const _ToolBar({
-    required this.hasSelection,
+    required this.selectedItem,
     required this.onAdd,
     required this.onAddImage,
+    required this.onToggleLock,
+    required this.onToggleImageOrientation,
     required this.onDelete,
   });
 
-  final bool hasSelection;
+  final BoardItem? selectedItem;
   final ValueChanged<BoardItemType> onAdd;
   final VoidCallback onAddImage;
+  final VoidCallback onToggleLock;
+  final VoidCallback onToggleImageOrientation;
   final VoidCallback onDelete;
 
   @override
@@ -464,8 +508,23 @@ class _ToolBar extends StatelessWidget {
             button(Icons.circle_outlined, 'Novo círculo',
                 () => onAdd(BoardItemType.circle)),
             button(Icons.image_outlined, 'Importar imagem', onAddImage),
-            if (hasSelection) ...<Widget>[
+            if (selectedItem != null) ...<Widget>[
               const Divider(color: Colors.white12, height: 8),
+              button(
+                selectedItem!.isLocked
+                    ? Icons.lock_open_rounded
+                    : Icons.lock_outline_rounded,
+                selectedItem!.isLocked
+                    ? 'Desancorar elemento'
+                    : 'Ancorar elemento',
+                onToggleLock,
+              ),
+              if (selectedItem!.type == BoardItemType.image)
+                button(
+                  Icons.rotate_90_degrees_ccw_outlined,
+                  'Alternar retrato/paisagem',
+                  onToggleImageOrientation,
+                ),
               button(Icons.delete_outline_rounded, 'Excluir', onDelete),
             ],
           ],
@@ -508,7 +567,7 @@ class _BoardItemView extends StatelessWidget {
         ),
         child: Image.memory(
           base64Decode(item.imageBase64),
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
           gaplessPlayback: true,
           errorBuilder: (_, __, ___) => const Center(
             child: Icon(Icons.broken_image_outlined, size: 42),

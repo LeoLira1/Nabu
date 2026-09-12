@@ -16,6 +16,7 @@ class BoardItem {
     this.imageBase64 = '',
     this.imageMimeType = 'image/jpeg',
     this.rotation = 0,
+    this.isLocked = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -29,6 +30,7 @@ class BoardItem {
   final String imageBase64;
   final String imageMimeType;
   final double rotation;
+  final bool isLocked;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -43,6 +45,7 @@ class BoardItem {
     String? imageBase64,
     String? imageMimeType,
     double? rotation,
+    bool? isLocked,
     DateTime? updatedAt,
   }) {
     return BoardItem(
@@ -55,6 +58,7 @@ class BoardItem {
       imageBase64: imageBase64 ?? this.imageBase64,
       imageMimeType: imageMimeType ?? this.imageMimeType,
       rotation: rotation ?? this.rotation,
+      isLocked: isLocked ?? this.isLocked,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -72,6 +76,7 @@ class BoardItem {
         'imageBase64': imageBase64,
         'imageMimeType': imageMimeType,
         'rotation': rotation,
+        'isLocked': isLocked,
         'createdAt': createdAt.toUtc().toIso8601String(),
         'updatedAt': updatedAt.toUtc().toIso8601String(),
       };
@@ -93,6 +98,7 @@ class BoardItem {
       imageBase64: (json['imageBase64'] as String?) ?? '',
       imageMimeType: (json['imageMimeType'] as String?) ?? 'image/jpeg',
       rotation: (json['rotation'] as num?)?.toDouble() ?? 0,
+      isLocked: (json['isLocked'] as bool?) ?? false,
       createdAt: DateTime.parse(json['createdAt']! as String),
       updatedAt: DateTime.parse(json['updatedAt']! as String),
     );
@@ -103,5 +109,6 @@ class BoardItem {
         'color': colorValue,
         'imageBase64': imageBase64,
         'imageMimeType': imageMimeType,
+        'isLocked': isLocked,
       });
 }
