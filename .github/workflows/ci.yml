@@ -27,13 +27,18 @@ jobs:
       - name: Gerar plataformas Flutter
         run: flutter create --platforms=android,web --project-name=nabu .
 
-      - name: Configurar Android 7+
+      - name: Configurar Android 7+ e acesso à internet
         run: |
           if [ -f android/app/build.gradle.kts ]; then
             sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' android/app/build.gradle.kts
           elif [ -f android/app/build.gradle ]; then
             sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' android/app/build.gradle
           fi
+          manifest=android/app/src/main/AndroidManifest.xml
+          if ! grep -q 'android.permission.INTERNET' "$manifest"; then
+            sed -i '/<manifest /a\    <uses-permission android:name="android.permission.INTERNET"/>' "$manifest"
+          fi
+          grep -q 'android.permission.INTERNET' "$manifest"
 
       - name: Instalar dependências
         run: flutter pub get

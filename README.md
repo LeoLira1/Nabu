@@ -51,6 +51,12 @@ flutter run \
 
 Sem essas duas opções, o Nabu funciona normalmente no modo local.
 
+## Solução de problemas
+
+Se o teste do Turso falhar, confirme que a URL começa com `libsql://` e
+gere um token válido no painel do banco. A build Android de produção inclui
+explicitamente a permissão `android.permission.INTERNET`.
+
 ## Segurança
 
 Nunca grave o token em um arquivo versionado, no `pubspec.yaml` ou no código.

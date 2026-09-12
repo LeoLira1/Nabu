@@ -145,6 +145,31 @@ class _TursoSettingsDialogState extends State<_TursoSettingsDialog> {
         authToken: _tokenController.text.trim(),
       );
 
+  bool _hasValidDatabaseUrl(String value) {
+    final uri = Uri.tryParse(value);
+    return uri != null &&
+        (uri.scheme == 'libsql' || uri.scheme == 'https') &&
+        uri.host.isNotEmpty;
+  }
+
+  String _connectionErrorMessage(Object error) {
+    final message = error.toString().toLowerCase();
+    if (message.contains('401') ||
+        message.contains('403') ||
+        message.contains('unauthorized') ||
+        message.contains('authentication') ||
+        message.contains('jwt')) {
+      return 'O Turso recusou o token. Gere ou copie um token válido.';
+    }
+    if (message.contains('socket') ||
+        message.contains('network') ||
+        message.contains('host lookup') ||
+        message.contains('connection')) {
+      return 'Não foi possível acessar o Turso. Confira sua internet e tente novamente.';
+    }
+    return 'Não foi possível conectar ao Turso (${error.runtimeType}).';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -168,6 +193,14 @@ class _TursoSettingsDialogState extends State<_TursoSettingsDialog> {
       });
       return;
     }
+    if (!_hasValidDatabaseUrl(settings.databaseUrl)) {
+      setState(() {
+        _testSucceeded = false;
+        _feedback =
+            'URL inválida. Use o endereço libsql:// exibido pelo Turso.';
+      });
+      return;
+    }
     setState(() {
       _testing = true;
       _feedback = null;
@@ -184,12 +217,12 @@ class _TursoSettingsDialogState extends State<_TursoSettingsDialog> {
         _testSucceeded = true;
         _feedback = 'Conexão realizada. As tabelas do Nabu estão prontas.';
       });
-    } catch (_) {
+    } catch (error) {
       await store.close();
       if (!mounted) return;
       setState(() {
         _testSucceeded = false;
-        _feedback = 'Falha na conexão. Confira a URL e o token.';
+        _feedback = _connectionErrorMessage(error);
       });
     } finally {
       if (mounted) setState(() => _testing = false);

@@ -1,7 +1,7 @@
 name: nabu
 description: Quadro visual infinito, local-first, com sincronização opcional no Turso.
 publish_to: none
-version: 0.3.0+3
+version: 0.3.1+4
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
