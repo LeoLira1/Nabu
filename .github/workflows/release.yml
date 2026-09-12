@@ -47,14 +47,14 @@ jobs:
         run: flutter build apk --release
 
       - name: Preparar APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk nabu-v0.2.0.apk
+        run: cp build/app/outputs/flutter-apk/app-release.apk nabu-v0.3.0.apk
 
-      - name: Publicar Nabu v0.2.0
+      - name: Publicar Nabu v0.3.0
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.2.0 nabu-v0.2.0.apk \
+          gh release create v0.3.0 nabu-v0.3.0.apk \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Nabu v0.2.0" \
-            --notes "Agora o Nabu importa imagens da galeria e permite configurar o Turso dentro do aplicativo, testar a conexão, criar as tabelas automaticamente e guardar o token com segurança no aparelho."
+            --title "Nabu v0.3.0" \
+            --notes "Adiciona ancoragem individual para evitar movimentos acidentais, alternância de imagens entre retrato e paisagem e exibição completa sem cortar capas ou documentos."
