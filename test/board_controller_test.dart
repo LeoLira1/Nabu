@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nabu/src/board/board_controller.dart';
 import 'package:nabu/src/board/board_item.dart';
