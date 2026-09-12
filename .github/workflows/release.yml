@@ -12,7 +12,7 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,6 +25,14 @@ jobs:
 
       - name: Gerar projeto Android
         run: flutter create --platforms=android --project-name=nabu .
+
+      - name: Configurar Android 7+
+        run: |
+          if [ -f android/app/build.gradle.kts ]; then
+            sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' android/app/build.gradle.kts
+          elif [ -f android/app/build.gradle ]; then
+            sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' android/app/build.gradle
+          fi
 
       - name: Instalar dependências
         run: flutter pub get
@@ -39,14 +47,14 @@ jobs:
         run: flutter build apk --release
 
       - name: Preparar APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk nabu-v0.1.0.apk
+        run: cp build/app/outputs/flutter-apk/app-release.apk nabu-v0.2.0.apk
 
-      - name: Publicar Nabu v0.1.0
+      - name: Publicar Nabu v0.2.0
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.1.0 nabu-v0.1.0.apk \
+          gh release create v0.2.0 nabu-v0.2.0.apk \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "Nabu v0.1.0" \
-            --notes "Primeira versão do Nabu: quadro visual infinito em Flutter, com pan e zoom, post-its, textos, formas, seleção, desfazer/refazer, minimapa, armazenamento local e integração opcional com Turso."
+            --title "Nabu v0.2.0" \
+            --notes "Agora o Nabu importa imagens da galeria e permite configurar o Turso dentro do aplicativo, testar a conexão, criar as tabelas automaticamente e guardar o token com segurança no aparelho."
