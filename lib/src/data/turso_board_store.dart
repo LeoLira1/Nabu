@@ -92,6 +92,9 @@ class TursoBoardStore implements RemoteBoardStore {
         rotation: (row['rotation']! as num).toDouble(),
         colorValue: (content['color']! as num).toInt(),
         text: (content['text'] as String?) ?? '',
+        imageBase64: (content['imageBase64'] as String?) ?? '',
+        imageMimeType:
+            (content['imageMimeType'] as String?) ?? 'image/jpeg',
         createdAt: DateTime.parse(row['created_at']! as String),
         updatedAt: DateTime.parse(row['updated_at']! as String),
       );

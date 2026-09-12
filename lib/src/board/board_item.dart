@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-enum BoardItemType { stickyNote, text, rectangle, circle }
+enum BoardItemType { stickyNote, text, rectangle, circle, image }
 
 @immutable
 class BoardItem {
@@ -13,6 +13,8 @@ class BoardItem {
     required this.size,
     required this.colorValue,
     this.text = '',
+    this.imageBase64 = '',
+    this.imageMimeType = 'image/jpeg',
     this.rotation = 0,
     required this.createdAt,
     required this.updatedAt,
@@ -24,6 +26,8 @@ class BoardItem {
   final Size size;
   final int colorValue;
   final String text;
+  final String imageBase64;
+  final String imageMimeType;
   final double rotation;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -36,6 +40,8 @@ class BoardItem {
     Size? size,
     int? colorValue,
     String? text,
+    String? imageBase64,
+    String? imageMimeType,
     double? rotation,
     DateTime? updatedAt,
   }) {
@@ -46,6 +52,8 @@ class BoardItem {
       size: size ?? this.size,
       colorValue: colorValue ?? this.colorValue,
       text: text ?? this.text,
+      imageBase64: imageBase64 ?? this.imageBase64,
+      imageMimeType: imageMimeType ?? this.imageMimeType,
       rotation: rotation ?? this.rotation,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -61,6 +69,8 @@ class BoardItem {
         'height': size.height,
         'color': colorValue,
         'text': text,
+        'imageBase64': imageBase64,
+        'imageMimeType': imageMimeType,
         'rotation': rotation,
         'createdAt': createdAt.toUtc().toIso8601String(),
         'updatedAt': updatedAt.toUtc().toIso8601String(),
@@ -80,6 +90,8 @@ class BoardItem {
       ),
       colorValue: (json['color']! as num).toInt(),
       text: (json['text'] as String?) ?? '',
+      imageBase64: (json['imageBase64'] as String?) ?? '',
+      imageMimeType: (json['imageMimeType'] as String?) ?? 'image/jpeg',
       rotation: (json['rotation'] as num?)?.toDouble() ?? 0,
       createdAt: DateTime.parse(json['createdAt']! as String),
       updatedAt: DateTime.parse(json['updatedAt']! as String),
@@ -89,6 +101,7 @@ class BoardItem {
   String encodeContent() => jsonEncode(<String, Object?>{
         'text': text,
         'color': colorValue,
+        'imageBase64': imageBase64,
+        'imageMimeType': imageMimeType,
       });
 }
-

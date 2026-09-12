@@ -28,5 +28,24 @@ void main() {
     expect(restored.createdAt, item.createdAt);
     expect(restored.updatedAt, item.updatedAt);
   });
-}
 
+  test('BoardItem preserva uma imagem ao serializar e restaurar', () {
+    final item = BoardItem(
+      id: 'image-1',
+      type: BoardItemType.image,
+      position: const Offset(10, 20),
+      size: const Size(320, 220),
+      colorValue: 0xffffffff,
+      imageBase64: 'AQIDBA==',
+      imageMimeType: 'image/png',
+      createdAt: DateTime.utc(2026, 9, 12),
+      updatedAt: DateTime.utc(2026, 9, 12),
+    );
+
+    final restored = BoardItem.fromJson(item.toJson());
+
+    expect(restored.type, BoardItemType.image);
+    expect(restored.imageBase64, 'AQIDBA==');
+    expect(restored.imageMimeType, 'image/png');
+  });
+}

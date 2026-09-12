@@ -1,15 +1,22 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'board_controller.dart';
 import 'board_item.dart';
 
 class BoardScreen extends StatefulWidget {
-  const BoardScreen({super.key, required this.controller});
+  const BoardScreen({
+    super.key,
+    required this.controller,
+    required this.onSettings,
+  });
 
   final BoardController controller;
+  final VoidCallback onSettings;
 
   @override
   State<BoardScreen> createState() => _BoardScreenState();
@@ -18,6 +25,7 @@ class BoardScreen extends StatefulWidget {
 class _BoardScreenState extends State<BoardScreen> {
   static const _green = Color(0xff16a394);
   final FocusNode _keyboardFocus = FocusNode();
+  final ImagePicker _imagePicker = ImagePicker();
   Offset _translation = Offset.zero;
   Offset _gestureStartTranslation = Offset.zero;
   Offset _worldFocalAtStart = Offset.zero;
@@ -58,6 +66,34 @@ class _BoardScreenState extends State<BoardScreen> {
       Offset(_viewport.width / 2, _viewport.height / 2),
     );
     controller.addItem(type, center - const Offset(105, 80));
+  }
+
+  Future<void> _pickImage() async {
+    try {
+      final image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 82,
+        requestFullMetadata: false,
+      );
+      if (image == null || !mounted) return;
+      final bytes = await image.readAsBytes();
+      if (!mounted) return;
+      final center = _screenToWorld(
+        Offset(_viewport.width / 2, _viewport.height / 2),
+      );
+      controller.addImage(
+        bytes,
+        center - const Offset(160, 110),
+        mimeType: image.mimeType ?? 'image/jpeg',
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Não foi possível importar a imagem: $error')),
+      );
+    }
   }
 
   Future<void> _edit(BoardItem item) async {
@@ -130,6 +166,7 @@ class _BoardScreenState extends State<BoardScreen> {
                     onZoomOut: () => _zoomBy(1 / 1.2),
                     onZoomIn: () => _zoomBy(1.2),
                     onCenter: _centerCamera,
+                    onSettings: widget.onSettings,
                   ),
                   Expanded(child: _buildBoard()),
                 ],
@@ -196,6 +233,7 @@ class _BoardScreenState extends State<BoardScreen> {
                 child: _ToolBar(
                   hasSelection: controller.selectedId != null,
                   onAdd: _add,
+                  onAddImage: _pickImage,
                   onDelete: controller.deleteSelected,
                 ),
               ),
@@ -258,6 +296,7 @@ class _TopBar extends StatelessWidget {
     required this.onZoomOut,
     required this.onZoomIn,
     required this.onCenter,
+    required this.onSettings,
   });
 
   final double scale;
@@ -269,9 +308,11 @@ class _TopBar extends StatelessWidget {
   final VoidCallback onZoomOut;
   final VoidCallback onZoomIn;
   final VoidCallback onCenter;
+  final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) {
+    final compact = MediaQuery.sizeOf(context).width < 620;
     final status = switch (syncState) {
       SyncState.localOnly => ('Somente local', Icons.phone_android_rounded),
       SyncState.connecting => ('Conectando', Icons.sync_rounded),
@@ -281,7 +322,7 @@ class _TopBar extends StatelessWidget {
 
     return Container(
       height: 64,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 18),
       color: const Color(0xff202833),
       child: Row(
         children: <Widget>[
@@ -311,14 +352,15 @@ class _TopBar extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(width: 14),
-          Container(width: 1, height: 28, color: Colors.white24),
-          const SizedBox(width: 14),
-          if (MediaQuery.sizeOf(context).width > 620)
+          if (!compact) ...<Widget>[
+            const SizedBox(width: 14),
+            Container(width: 1, height: 28, color: Colors.white24),
+            const SizedBox(width: 14),
             const Text(
               'Meu quadro infinito',
               style: TextStyle(color: Colors.white70),
             ),
+          ],
           const Spacer(),
           if (MediaQuery.sizeOf(context).width > 760) ...<Widget>[
             Icon(status.$2, color: Colors.white60, size: 17),
@@ -326,6 +368,12 @@ class _TopBar extends StatelessWidget {
             Text(status.$1, style: const TextStyle(color: Colors.white60)),
             const SizedBox(width: 18),
           ],
+          IconButton(
+            onPressed: onSettings,
+            tooltip: 'Configurar Turso',
+            color: Colors.white,
+            icon: const Icon(Icons.cloud_outlined),
+          ),
           IconButton(
             onPressed: canUndo ? onUndo : null,
             tooltip: 'Desfazer',
@@ -340,29 +388,32 @@ class _TopBar extends StatelessWidget {
             disabledColor: Colors.white24,
             icon: const Icon(Icons.redo_rounded),
           ),
-          IconButton(
-            onPressed: onZoomOut,
-            color: Colors.white,
-            icon: const Icon(Icons.remove_rounded),
-          ),
-          InkWell(
-            onTap: onCenter,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
-              child: Text(
-                '${(scale * 100).round()}%',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
+          if (!compact) ...<Widget>[
+            IconButton(
+              onPressed: onZoomOut,
+              color: Colors.white,
+              icon: const Icon(Icons.remove_rounded),
+            ),
+            InkWell(
+              onTap: onCenter,
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 12),
+                child: Text(
+                  '${(scale * 100).round()}%',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ),
-          ),
-          IconButton(
-            onPressed: onZoomIn,
-            color: Colors.white,
-            icon: const Icon(Icons.add_rounded),
-          ),
+            IconButton(
+              onPressed: onZoomIn,
+              color: Colors.white,
+              icon: const Icon(Icons.add_rounded),
+            ),
+          ],
         ],
       ),
     );
@@ -373,11 +424,13 @@ class _ToolBar extends StatelessWidget {
   const _ToolBar({
     required this.hasSelection,
     required this.onAdd,
+    required this.onAddImage,
     required this.onDelete,
   });
 
   final bool hasSelection;
   final ValueChanged<BoardItemType> onAdd;
+  final VoidCallback onAddImage;
   final VoidCallback onDelete;
 
   @override
@@ -410,6 +463,7 @@ class _ToolBar extends StatelessWidget {
                 () => onAdd(BoardItemType.rectangle)),
             button(Icons.circle_outlined, 'Novo círculo',
                 () => onAdd(BoardItemType.circle)),
+            button(Icons.image_outlined, 'Importar imagem', onAddImage),
             if (hasSelection) ...<Widget>[
               const Divider(color: Colors.white12, height: 8),
               button(Icons.delete_outline_rounded, 'Excluir', onDelete),
@@ -429,6 +483,39 @@ class _BoardItemView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (item.type == BoardItemType.image && item.imageBase64.isNotEmpty) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: item.size.width,
+        height: item.size.height,
+        clipBehavior: Clip.antiAlias,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected
+                ? const Color(0xff3d6fe8)
+                : const Color(0xffd6dce1),
+            width: selected ? 3 : 1,
+          ),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(
+              blurRadius: 18,
+              offset: Offset(0, 8),
+              color: Color(0x22000000),
+            ),
+          ],
+        ),
+        child: Image.memory(
+          base64Decode(item.imageBase64),
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+          errorBuilder: (_, __, ___) => const Center(
+            child: Icon(Icons.broken_image_outlined, size: 42),
+          ),
+        ),
+      );
+    }
     final shape = item.type == BoardItemType.circle
         ? BoxShape.circle
         : BoxShape.rectangle;
@@ -657,4 +744,3 @@ class _MiniMapPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _MiniMapPainter oldDelegate) => true;
 }
-

@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nabu/src/board/board_controller.dart';
 import 'package:nabu/src/board/board_item.dart';
@@ -44,5 +46,24 @@ void main() {
 
     controller.undo();
     expect(controller.items, hasLength(initialCount));
+  });
+
+  test('adiciona imagem ao quadro', () async {
+    final controller = BoardController(
+      localStore: MemoryLocalStore(),
+      remoteStore: DisabledRemoteStore(),
+    );
+    await controller.initialize();
+
+    controller.addImage(
+      Uint8List.fromList(<int>[1, 2, 3, 4]),
+      const Offset(30, 40),
+      mimeType: 'image/png',
+    );
+
+    final image = controller.items.last;
+    expect(image.type, BoardItemType.image);
+    expect(image.imageBase64, 'AQIDBA==');
+    expect(image.imageMimeType, 'image/png');
   });
 }

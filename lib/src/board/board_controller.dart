@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
@@ -82,6 +84,7 @@ class BoardController extends ChangeNotifier {
         BoardItemType.text => const Size(240, 90),
         BoardItemType.rectangle => const Size(220, 120),
         BoardItemType.circle => const Size(150, 150),
+        BoardItemType.image => const Size(320, 220),
       },
       colorValue: palette[_items.length % palette.length],
       text: switch (type) {
@@ -89,7 +92,31 @@ class BoardController extends ChangeNotifier {
         BoardItemType.text => 'Digite seu texto',
         BoardItemType.rectangle => 'Etapa',
         BoardItemType.circle => 'Tema',
+        BoardItemType.image => '',
       },
+      createdAt: now,
+      updatedAt: now,
+    );
+    _items = <BoardItem>[..._items, item];
+    _selectedId = item.id;
+    _changed(item);
+  }
+
+  void addImage(
+    Uint8List bytes,
+    Offset worldPosition, {
+    String mimeType = 'image/jpeg',
+  }) {
+    _checkpoint();
+    final now = DateTime.now().toUtc();
+    final item = BoardItem(
+      id: '${now.microsecondsSinceEpoch}-${_idCounter++}',
+      type: BoardItemType.image,
+      position: worldPosition,
+      size: const Size(320, 220),
+      colorValue: 0xffffffff,
+      imageBase64: base64Encode(bytes),
+      imageMimeType: mimeType,
       createdAt: now,
       updatedAt: now,
     );
@@ -282,4 +309,3 @@ class BoardController extends ChangeNotifier {
     super.dispose();
   }
 }
-
