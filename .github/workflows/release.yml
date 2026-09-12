@@ -1,0 +1,52 @@
+name: Publish Android Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Instalar Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Gerar projeto Android
+        run: flutter create --platforms=android --project-name=nabu .
+
+      - name: Instalar dependências
+        run: flutter pub get
+
+      - name: Análise estática
+        run: flutter analyze
+
+      - name: Testes
+        run: flutter test
+
+      - name: Compilar APK de produção
+        run: flutter build apk --release
+
+      - name: Preparar APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk nabu-v0.1.0.apk
+
+      - name: Publicar Nabu v0.1.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.1.0 nabu-v0.1.0.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Nabu v0.1.0" \
+            --notes "Primeira versão do Nabu: quadro visual infinito em Flutter, com pan e zoom, post-its, textos, formas, seleção, desfazer/refazer, minimapa, armazenamento local e integração opcional com Turso."
