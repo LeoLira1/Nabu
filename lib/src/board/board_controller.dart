@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -10,10 +11,15 @@ import 'board_item.dart';
 enum SyncState { localOnly, connecting, synced, error }
 
 class BoardController extends ChangeNotifier {
-  BoardController({required this.localStore, required this.remoteStore});
+  BoardController({
+    required this.localStore,
+    required this.remoteStore,
+    this.showStarterItems = true,
+  });
 
   final BoardStore localStore;
   final RemoteBoardStore remoteStore;
+  final bool showStarterItems;
   final List<List<BoardItem>> _undo = <List<BoardItem>>[];
   final List<List<BoardItem>> _redo = <List<BoardItem>>[];
   final Map<String, Offset> _moveStarts = <String, Offset>{};
@@ -35,7 +41,7 @@ class BoardController extends ChangeNotifier {
   Future<void> initialize() async {
     try {
       final local = await localStore.loadItems();
-      _items = local.isEmpty ? _starterItems() : local;
+      _items = local.isEmpty && showStarterItems ? _starterItems() : local;
       _loading = false;
       notifyListeners();
       if (!remoteStore.isConfigured) {
@@ -43,19 +49,7 @@ class BoardController extends ChangeNotifier {
         return;
       }
 
-      _syncState = SyncState.connecting;
-      notifyListeners();
-      await remoteStore.initialize();
-      final remote = await remoteStore.loadItems();
-      if (remote.isNotEmpty) {
-        _items = _mergeNewest(_items, remote);
-      } else {
-        for (final item in _items) {
-          await remoteStore.upsertItem(item);
-        }
-      }
-      await _persistLocal();
-      _syncState = SyncState.synced;
+      await syncNow();
     } catch (_) {
       _syncState = SyncState.error;
       _loading = false;
@@ -68,7 +62,11 @@ class BoardController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addItem(BoardItemType type, Offset worldPosition) {
+  void addItem(
+    BoardItemType type,
+    Offset worldPosition, {
+    String? content,
+  }) {
     _checkpoint();
     final now = DateTime.now().toUtc();
     final palette = <int>[
@@ -87,15 +85,22 @@ class BoardController extends ChangeNotifier {
         BoardItemType.rectangle => const Size(220, 120),
         BoardItemType.circle => const Size(150, 150),
         BoardItemType.image => const Size(320, 220),
+        BoardItemType.arrow => const Size(210, 100),
+        BoardItemType.symbol => const Size(100, 100),
       },
-      colorValue: palette[_items.length % palette.length],
-      text: switch (type) {
-        BoardItemType.stickyNote => 'Nova ideia',
-        BoardItemType.text => 'Digite seu texto',
-        BoardItemType.rectangle => 'Etapa',
-        BoardItemType.circle => 'Tema',
-        BoardItemType.image => '',
-      },
+      colorValue: type == BoardItemType.arrow || type == BoardItemType.symbol
+          ? 0xff202833
+          : palette[_items.length % palette.length],
+      text: content ??
+          (switch (type) {
+            BoardItemType.stickyNote => 'Nova ideia',
+            BoardItemType.text => 'Digite seu texto',
+            BoardItemType.rectangle => 'Etapa',
+            BoardItemType.circle => 'Tema',
+            BoardItemType.image => '',
+            BoardItemType.arrow => 'straight',
+            BoardItemType.symbol => 'star',
+          }),
       createdAt: now,
       updatedAt: now,
     );
@@ -192,6 +197,44 @@ class BoardController extends ChangeNotifier {
       updatedAt: DateTime.now().toUtc(),
     );
     _changed(_items[index]);
+  }
+
+  void rotateItem(String id) {
+    final index = _items.indexWhere((item) => item.id == id);
+    if (index < 0) return;
+    _checkpoint();
+    final next = (_items[index].rotation + math.pi / 4) % (math.pi * 2);
+    _items[index] = _items[index].copyWith(
+      rotation: next,
+      updatedAt: DateTime.now().toUtc(),
+    );
+    _changed(_items[index]);
+  }
+
+  Future<bool> syncNow() async {
+    if (!remoteStore.isConfigured) {
+      _syncState = SyncState.localOnly;
+      notifyListeners();
+      return false;
+    }
+    _syncState = SyncState.connecting;
+    notifyListeners();
+    try {
+      await remoteStore.initialize();
+      final remote = await remoteStore.loadItems();
+      _items = _mergeNewest(_items, remote);
+      for (final item in _items) {
+        await remoteStore.upsertItem(item);
+      }
+      await _persistLocal();
+      _syncState = SyncState.synced;
+      notifyListeners();
+      return true;
+    } catch (_) {
+      _syncState = SyncState.error;
+      notifyListeners();
+      return false;
+    }
   }
 
   void deleteSelected() {

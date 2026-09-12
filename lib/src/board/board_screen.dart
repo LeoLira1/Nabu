@@ -8,14 +8,31 @@ import 'package:image_picker/image_picker.dart';
 import 'board_controller.dart';
 import 'board_item.dart';
 
+const _symbolIcons = <String, IconData>{
+  'star': Icons.star_rounded,
+  'heart': Icons.favorite_rounded,
+  'check': Icons.check_circle_rounded,
+  'idea': Icons.lightbulb_rounded,
+  'warning': Icons.warning_rounded,
+  'book': Icons.menu_book_rounded,
+  'movie': Icons.movie_rounded,
+  'work': Icons.work_rounded,
+};
+
 class BoardScreen extends StatefulWidget {
   const BoardScreen({
     super.key,
     required this.controller,
+    required this.boardTitle,
+    required this.onBoards,
+    required this.onSync,
     required this.onSettings,
   });
 
   final BoardController controller;
+  final String boardTitle;
+  final VoidCallback onBoards;
+  final VoidCallback onSync;
   final VoidCallback onSettings;
 
   @override
@@ -66,6 +83,95 @@ class _BoardScreenState extends State<BoardScreen> {
       Offset(_viewport.width / 2, _viewport.height / 2),
     );
     controller.addItem(type, center - const Offset(105, 80));
+  }
+
+  void _addWithContent(BoardItemType type, String content) {
+    final center = _screenToWorld(
+      Offset(_viewport.width / 2, _viewport.height / 2),
+    );
+    final offset = type == BoardItemType.symbol
+        ? const Offset(50, 50)
+        : const Offset(105, 50);
+    controller.addItem(type, center - offset, content: content);
+  }
+
+  Future<void> _pickArrow() async {
+    final style = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Wrap(
+          children: <Widget>[
+            const ListTile(
+              title: Text(
+                'Adicionar seta',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.arrow_forward_rounded),
+              title: const Text('Seta reta'),
+              onTap: () => Navigator.pop(context, 'straight'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.subdirectory_arrow_right_rounded),
+              title: const Text('Seta curva'),
+              onTap: () => Navigator.pop(context, 'curved'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (style != null && mounted) {
+      _addWithContent(BoardItemType.arrow, style);
+    }
+  }
+
+  Future<void> _pickSymbol() async {
+    final symbol = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 10),
+                child: Text(
+                  'Adicionar símbolo',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                ),
+              ),
+              GridView.count(
+                shrinkWrap: true,
+                crossAxisCount: 4,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
+                children: _symbolIcons.entries
+                    .map((entry) => InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: () => Navigator.pop(context, entry.key),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: const Color(0xffedf1f4),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: Icon(entry.value, size: 34),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (symbol != null && mounted) {
+      _addWithContent(BoardItemType.symbol, symbol);
+    }
   }
 
   Future<void> _pickImage() async {
@@ -157,6 +263,7 @@ class _BoardScreenState extends State<BoardScreen> {
               child: Column(
                 children: <Widget>[
                   _TopBar(
+                    boardTitle: widget.boardTitle,
                     scale: _scale,
                     syncState: controller.syncState,
                     canUndo: controller.canUndo,
@@ -166,6 +273,8 @@ class _BoardScreenState extends State<BoardScreen> {
                     onZoomOut: () => _zoomBy(1 / 1.2),
                     onZoomIn: () => _zoomBy(1.2),
                     onCenter: _centerCamera,
+                    onBoards: widget.onBoards,
+                    onSync: widget.onSync,
                     onSettings: widget.onSettings,
                   ),
                   Expanded(child: _buildBoard()),
@@ -236,6 +345,8 @@ class _BoardScreenState extends State<BoardScreen> {
                   selectedItem: selectedItem,
                   onAdd: _add,
                   onAddImage: _pickImage,
+                  onAddArrow: _pickArrow,
+                  onAddSymbol: _pickSymbol,
                   onToggleLock: () {
                     if (selectedItem != null) {
                       controller.toggleLock(selectedItem.id);
@@ -244,6 +355,11 @@ class _BoardScreenState extends State<BoardScreen> {
                   onToggleImageOrientation: () {
                     if (selectedItem != null) {
                       controller.toggleImageOrientation(selectedItem.id);
+                    }
+                  },
+                  onRotate: () {
+                    if (selectedItem != null) {
+                      controller.rotateItem(selectedItem.id);
                     }
                   },
                   onDelete: controller.deleteSelected,
@@ -280,7 +396,11 @@ class _BoardScreenState extends State<BoardScreen> {
           alignment: Alignment.topLeft,
           child: GestureDetector(
             onTap: () => controller.select(item.id),
-            onDoubleTap: () => _edit(item),
+            onDoubleTap: item.type == BoardItemType.image ||
+                    item.type == BoardItemType.arrow ||
+                    item.type == BoardItemType.symbol
+                ? null
+                : () => _edit(item),
             onPanStart: item.isLocked
                 ? null
                 : (_) {
@@ -327,6 +447,7 @@ class _BoardScreenState extends State<BoardScreen> {
 
 class _TopBar extends StatelessWidget {
   const _TopBar({
+    required this.boardTitle,
     required this.scale,
     required this.syncState,
     required this.canUndo,
@@ -336,9 +457,12 @@ class _TopBar extends StatelessWidget {
     required this.onZoomOut,
     required this.onZoomIn,
     required this.onCenter,
+    required this.onBoards,
+    required this.onSync,
     required this.onSettings,
   });
 
+  final String boardTitle;
   final double scale;
   final SyncState syncState;
   final bool canUndo;
@@ -348,6 +472,8 @@ class _TopBar extends StatelessWidget {
   final VoidCallback onZoomOut;
   final VoidCallback onZoomIn;
   final VoidCallback onCenter;
+  final VoidCallback onBoards;
+  final VoidCallback onSync;
   final VoidCallback onSettings;
 
   @override
@@ -359,6 +485,22 @@ class _TopBar extends StatelessWidget {
       SyncState.synced => ('Turso sincronizado', Icons.cloud_done_outlined),
       SyncState.error => ('Falha na sincronização', Icons.cloud_off_outlined),
     };
+    Widget actionButton({
+      required IconData icon,
+      required String tooltip,
+      required VoidCallback? onPressed,
+    }) =>
+        IconButton(
+          onPressed: onPressed,
+          tooltip: tooltip,
+          color: Colors.white,
+          disabledColor: Colors.white24,
+          visualDensity: compact ? VisualDensity.compact : null,
+          constraints: compact
+              ? const BoxConstraints.tightFor(width: 40, height: 48)
+              : null,
+          icon: Icon(icon),
+        );
 
     return Container(
       height: 64,
@@ -384,23 +526,34 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          const Text(
-            'Nabu',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 19,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
           if (!compact) ...<Widget>[
+            const Text(
+              'Nabu',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 19,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
             const SizedBox(width: 14),
             Container(width: 1, height: 28, color: Colors.white24),
-            const SizedBox(width: 14),
-            const Text(
-              'Meu quadro infinito',
-              style: TextStyle(color: Colors.white70),
-            ),
+            const SizedBox(width: 8),
           ],
+          Flexible(
+            child: TextButton.icon(
+              onPressed: onBoards,
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 10),
+              ),
+              icon: const Icon(Icons.dashboard_outlined, size: 19),
+              label: Text(
+                boardTitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
           const Spacer(),
           if (MediaQuery.sizeOf(context).width > 760) ...<Widget>[
             Icon(status.$2, color: Colors.white60, size: 17),
@@ -408,25 +561,25 @@ class _TopBar extends StatelessWidget {
             Text(status.$1, style: const TextStyle(color: Colors.white60)),
             const SizedBox(width: 18),
           ],
-          IconButton(
-            onPressed: onSettings,
+          actionButton(
+            icon: Icons.sync_rounded,
+            tooltip: 'Sincronizar agora',
+            onPressed: syncState == SyncState.connecting ? null : onSync,
+          ),
+          actionButton(
+            icon: Icons.cloud_outlined,
             tooltip: 'Configurar Turso',
-            color: Colors.white,
-            icon: const Icon(Icons.cloud_outlined),
+            onPressed: onSettings,
           ),
-          IconButton(
-            onPressed: canUndo ? onUndo : null,
+          actionButton(
+            icon: Icons.undo_rounded,
             tooltip: 'Desfazer',
-            color: Colors.white,
-            disabledColor: Colors.white24,
-            icon: const Icon(Icons.undo_rounded),
+            onPressed: canUndo ? onUndo : null,
           ),
-          IconButton(
-            onPressed: canRedo ? onRedo : null,
+          actionButton(
+            icon: Icons.redo_rounded,
             tooltip: 'Refazer',
-            color: Colors.white,
-            disabledColor: Colors.white24,
-            icon: const Icon(Icons.redo_rounded),
+            onPressed: canRedo ? onRedo : null,
           ),
           if (!compact) ...<Widget>[
             IconButton(
@@ -465,16 +618,22 @@ class _ToolBar extends StatelessWidget {
     required this.selectedItem,
     required this.onAdd,
     required this.onAddImage,
+    required this.onAddArrow,
+    required this.onAddSymbol,
     required this.onToggleLock,
     required this.onToggleImageOrientation,
+    required this.onRotate,
     required this.onDelete,
   });
 
   final BoardItem? selectedItem;
   final ValueChanged<BoardItemType> onAdd;
   final VoidCallback onAddImage;
+  final VoidCallback onAddArrow;
+  final VoidCallback onAddSymbol;
   final VoidCallback onToggleLock;
   final VoidCallback onToggleImageOrientation;
+  final VoidCallback onRotate;
   final VoidCallback onDelete;
 
   @override
@@ -492,11 +651,15 @@ class _ToolBar extends StatelessWidget {
       elevation: 8,
       color: const Color(0xff202833),
       borderRadius: BorderRadius.circular(13),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height - 120,
+        ),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
             button(Icons.pan_tool_alt_outlined, 'Mover o quadro', () {}),
             const Divider(color: Colors.white12, height: 8),
             button(Icons.sticky_note_2_outlined, 'Novo post-it',
@@ -508,6 +671,8 @@ class _ToolBar extends StatelessWidget {
             button(Icons.circle_outlined, 'Novo círculo',
                 () => onAdd(BoardItemType.circle)),
             button(Icons.image_outlined, 'Importar imagem', onAddImage),
+            button(Icons.arrow_forward_rounded, 'Adicionar seta', onAddArrow),
+            button(Icons.category_outlined, 'Adicionar símbolo', onAddSymbol),
             if (selectedItem != null) ...<Widget>[
               const Divider(color: Colors.white12, height: 8),
               button(
@@ -525,9 +690,16 @@ class _ToolBar extends StatelessWidget {
                   'Alternar retrato/paisagem',
                   onToggleImageOrientation,
                 ),
+              if (selectedItem!.type == BoardItemType.arrow)
+                button(
+                  Icons.rotate_right_rounded,
+                  'Girar seta em 45°',
+                  onRotate,
+                ),
               button(Icons.delete_outline_rounded, 'Excluir', onDelete),
             ],
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -542,6 +714,49 @@ class _BoardItemView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (item.type == BoardItemType.arrow) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: item.size.width,
+        height: item.size.height,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? const Color(0xff3d6fe8) : Colors.transparent,
+            width: 3,
+          ),
+        ),
+        child: CustomPaint(
+          painter: _ArrowPainter(
+            curved: item.text == 'curved',
+            color: item.color,
+          ),
+        ),
+      );
+    }
+    if (item.type == BoardItemType.symbol) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 120),
+        width: item.size.width,
+        height: item.size.height,
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .88),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? const Color(0xff3d6fe8) : Colors.transparent,
+            width: 3,
+          ),
+          boxShadow: const <BoxShadow>[
+            BoxShadow(blurRadius: 12, color: Color(0x18000000)),
+          ],
+        ),
+        child: Icon(
+          _symbolIcons[item.text] ?? Icons.star_rounded,
+          size: 54,
+          color: item.color,
+        ),
+      );
+    }
     if (item.type == BoardItemType.image && item.imageBase64.isNotEmpty) {
       return AnimatedContainer(
         duration: const Duration(milliseconds: 120),
@@ -623,6 +838,63 @@ class _BoardItemView extends StatelessWidget {
       child: Text(item.text, textAlign: TextAlign.center, style: textStyle),
     );
   }
+}
+
+class _ArrowPainter extends CustomPainter {
+  const _ArrowPainter({required this.curved, required this.color});
+
+  final bool curved;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    final end = curved
+        ? Offset(size.width - 28, size.height * .6)
+        : Offset(size.width - 28, size.height / 2);
+    double angle;
+    if (curved) {
+      final control = Offset(size.width * .68, 8);
+      final path = Path()
+        ..moveTo(18, size.height - 18)
+        ..cubicTo(
+          size.width * .18,
+          8,
+          control.dx,
+          control.dy,
+          end.dx,
+          end.dy,
+        );
+      canvas.drawPath(path, paint);
+      angle = math.atan2(end.dy - control.dy, end.dx - control.dx);
+    } else {
+      canvas.drawLine(Offset(18, size.height / 2), end, paint);
+      angle = 0;
+    }
+    const headLength = 25.0;
+    const spread = .68;
+    final first = end -
+        Offset(
+          math.cos(angle - spread) * headLength,
+          math.sin(angle - spread) * headLength,
+        );
+    final second = end -
+        Offset(
+          math.cos(angle + spread) * headLength,
+          math.sin(angle + spread) * headLength,
+        );
+    canvas.drawLine(end, first, paint);
+    canvas.drawLine(end, second, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ArrowPainter oldDelegate) =>
+      oldDelegate.curved != curved || oldDelegate.color != color;
 }
 
 class InfiniteGridPainter extends CustomPainter {

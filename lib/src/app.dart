@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'board/board_controller.dart';
+import 'board/board_info.dart';
 import 'board/board_screen.dart';
+import 'data/local_board_catalog_store.dart';
 import 'data/local_board_store.dart';
 import 'data/turso_board_store.dart';
 import 'data/turso_settings_store.dart';
@@ -15,7 +17,10 @@ class NabuApp extends StatefulWidget {
 
 class _NabuAppState extends State<NabuApp> {
   final TursoSettingsStore _settingsStore = TursoSettingsStore();
+  final LocalBoardCatalogStore _catalogStore = LocalBoardCatalogStore();
   BoardController? _controller;
+  List<BoardInfo> _boards = <BoardInfo>[BoardInfo.mainBoard()];
+  String _selectedBoardId = 'main';
   TursoSettings _settings = const TursoSettings(
     databaseUrl: TursoSettings.defaultDatabaseUrl,
     authToken: '',
@@ -28,6 +33,8 @@ class _NabuAppState extends State<NabuApp> {
   }
 
   Future<void> _bootstrap() async {
+    var localBoards = await _catalogStore.loadBoards();
+    final savedBoardId = await _catalogStore.loadSelectedBoardId();
     final stored = await _settingsStore.load();
     const environmentUrl = String.fromEnvironment('TURSO_DATABASE_URL');
     const environmentToken = String.fromEnvironment('TURSO_AUTH_TOKEN');
@@ -40,16 +47,28 @@ class _NabuAppState extends State<NabuApp> {
       authToken:
           stored.authToken.isNotEmpty ? stored.authToken : environmentToken,
     );
+    if (resolved.isConfigured) {
+      localBoards = await _syncBoardCatalog(resolved, localBoards);
+    }
+    _boards = localBoards;
+    _selectedBoardId = localBoards.any((board) => board.id == savedBoardId)
+        ? savedBoardId
+        : 'main';
+    await _catalogStore.saveBoards(localBoards);
     await _replaceController(resolved);
   }
 
   Future<void> _replaceController(TursoSettings settings) async {
+    final board = _selectedBoard;
     final next = BoardController(
-      localStore: LocalBoardStore(),
+      localStore: LocalBoardStore(boardId: board.id),
       remoteStore: TursoBoardStore(
         databaseUrl: settings.databaseUrl,
         authToken: settings.authToken,
+        boardId: board.id,
+        boardTitle: board.title,
       ),
+      showStarterItems: board.id == 'main',
     );
     await next.initialize();
     if (!mounted) {
@@ -64,6 +83,242 @@ class _NabuAppState extends State<NabuApp> {
     previous?.dispose();
   }
 
+  BoardInfo get _selectedBoard => _boards.firstWhere(
+        (board) => board.id == _selectedBoardId,
+        orElse: BoardInfo.mainBoard,
+      );
+
+  static List<BoardInfo> _mergeBoards(
+    List<BoardInfo> local,
+    List<BoardInfo> remote,
+  ) {
+    final merged = <String, BoardInfo>{};
+    for (final board in <BoardInfo>[...local, ...remote]) {
+      final current = merged[board.id];
+      if (current == null || board.updatedAt.isAfter(current.updatedAt)) {
+        merged[board.id] = board;
+      }
+    }
+    if (!merged.containsKey('main')) merged['main'] = BoardInfo.mainBoard();
+    return merged.values.toList()
+      ..sort((a, b) {
+        if (a.id == 'main') return -1;
+        if (b.id == 'main') return 1;
+        return a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      });
+  }
+
+  Future<List<BoardInfo>> _syncBoardCatalog(
+    TursoSettings settings,
+    List<BoardInfo> local,
+  ) async {
+    final selected = local.firstWhere(
+      (board) => board.id == _selectedBoardId,
+      orElse: BoardInfo.mainBoard,
+    );
+    final store = TursoBoardStore(
+      databaseUrl: settings.databaseUrl,
+      authToken: settings.authToken,
+      boardId: selected.id,
+      boardTitle: selected.title,
+    );
+    try {
+      await store.initialize();
+      final merged = _mergeBoards(local, await store.loadBoards());
+      for (final board in merged) {
+        await store.upsertBoard(board);
+      }
+      return merged;
+    } catch (_) {
+      return local;
+    } finally {
+      await store.close();
+    }
+  }
+
+  Future<void> _switchBoard(String id) async {
+    if (id == _selectedBoardId) return;
+    _selectedBoardId = id;
+    await _catalogStore.saveSelectedBoardId(id);
+    await _replaceController(_settings);
+  }
+
+  Future<String?> _askBoardName(
+    BuildContext context, {
+    required String title,
+    String initial = '',
+  }) async {
+    final textController = TextEditingController(text: initial);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: textController,
+          autofocus: true,
+          maxLength: 40,
+          decoration: const InputDecoration(
+            labelText: 'Nome do quadro',
+            hintText: 'Ex.: Livros e leituras',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final value = textController.text.trim();
+              if (value.isNotEmpty) Navigator.pop(context, value);
+            },
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    textController.dispose();
+    return result;
+  }
+
+  Future<void> _createBoard(BuildContext context) async {
+    final title = await _askBoardName(context, title: 'Novo quadro');
+    if (title == null || !mounted) return;
+    final now = DateTime.now().toUtc();
+    final board = BoardInfo(
+      id: 'board-${now.microsecondsSinceEpoch}',
+      title: title,
+      createdAt: now,
+      updatedAt: now,
+    );
+    setState(() => _boards = _mergeBoards(_boards, <BoardInfo>[board]));
+    await _catalogStore.saveBoards(_boards);
+    if (_settings.isConfigured) {
+      await _saveBoardRemote(board);
+    }
+    await _switchBoard(board.id);
+  }
+
+  Future<void> _renameBoard(BuildContext context, BoardInfo board) async {
+    final title = await _askBoardName(
+      context,
+      title: 'Renomear quadro',
+      initial: board.title,
+    );
+    if (title == null || title == board.title || !mounted) return;
+    final updated = board.copyWith(
+      title: title,
+      updatedAt: DateTime.now().toUtc(),
+    );
+    setState(() {
+      _boards = _boards
+          .map((value) => value.id == updated.id ? updated : value)
+          .toList();
+    });
+    await _catalogStore.saveBoards(_boards);
+    if (_settings.isConfigured) await _saveBoardRemote(updated);
+  }
+
+  Future<void> _saveBoardRemote(BoardInfo board) async {
+    final store = TursoBoardStore(
+      databaseUrl: _settings.databaseUrl,
+      authToken: _settings.authToken,
+      boardId: board.id,
+      boardTitle: board.title,
+    );
+    try {
+      await store.initialize();
+      await store.upsertBoard(board);
+    } catch (_) {
+      // O catálogo local continua disponível e será reenviado no próximo sync.
+    } finally {
+      await store.close();
+    }
+  }
+
+  Future<void> _openBoardPicker(BuildContext context) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const ListTile(
+              leading: Icon(Icons.dashboard_outlined),
+              title: Text(
+                'Meus quadros',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 340),
+              child: ListView(
+                shrinkWrap: true,
+                children: _boards
+                    .map((board) => ListTile(
+                          leading: Icon(
+                            board.id == _selectedBoardId
+                                ? Icons.check_circle_rounded
+                                : Icons.dashboard_outlined,
+                          ),
+                          title: Text(board.title),
+                          onTap: () => Navigator.pop(context, board.id),
+                          trailing: IconButton(
+                            tooltip: 'Renomear',
+                            icon: const Icon(Icons.edit_outlined),
+                            onPressed: () =>
+                                Navigator.pop(context, 'rename:${board.id}'),
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_circle_outline_rounded),
+              title: const Text('Criar novo quadro'),
+              onTap: () => Navigator.pop(context, 'create'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !context.mounted) return;
+    if (action == 'create') {
+      await _createBoard(context);
+    } else if (action.startsWith('rename:')) {
+      final id = action.substring('rename:'.length);
+      final board = _boards.firstWhere((value) => value.id == id);
+      await _renameBoard(context, board);
+    } else {
+      await _switchBoard(action);
+    }
+  }
+
+  Future<void> _syncNow(BuildContext context) async {
+    final controller = _controller;
+    if (controller == null) return;
+    final itemsSynced = await controller.syncNow();
+    if (_settings.isConfigured) {
+      final boards = await _syncBoardCatalog(_settings, _boards);
+      if (mounted) {
+        setState(() => _boards = boards);
+        await _catalogStore.saveBoards(boards);
+      }
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          itemsSynced
+              ? 'Quadro sincronizado com o Turso.'
+              : 'Não foi possível sincronizar. Confira a conexão.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _openSettings(BuildContext pageContext) async {
     final result = await showDialog<TursoSettings>(
       context: pageContext,
@@ -72,6 +327,8 @@ class _NabuAppState extends State<NabuApp> {
     if (result == null) return;
 
     await _settingsStore.save(result);
+    _boards = await _syncBoardCatalog(result, _boards);
+    await _catalogStore.saveBoards(_boards);
     await _replaceController(result);
     if (!pageContext.mounted) return;
     final synced = _controller?.syncState == SyncState.synced;
@@ -114,7 +371,11 @@ class _NabuAppState extends State<NabuApp> {
             );
           }
           return BoardScreen(
+            key: ValueKey(_selectedBoardId),
             controller: controller,
+            boardTitle: _selectedBoard.title,
+            onBoards: () => _openBoardPicker(pageContext),
+            onSync: () => _syncNow(pageContext),
             onSettings: () => _openSettings(pageContext),
           );
         },

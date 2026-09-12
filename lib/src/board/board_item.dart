@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-enum BoardItemType { stickyNote, text, rectangle, circle, image }
+enum BoardItemType { stickyNote, text, rectangle, circle, image, arrow, symbol }
 
 @immutable
 class BoardItem {

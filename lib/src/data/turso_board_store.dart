@@ -3,20 +3,27 @@ import 'dart:ui';
 
 import 'package:libsql_dart/libsql_dart.dart';
 
+import '../board/board_info.dart';
 import '../board/board_item.dart';
 import 'board_store.dart';
 
 class TursoBoardStore implements RemoteBoardStore {
-  TursoBoardStore({required this.databaseUrl, required this.authToken});
+  TursoBoardStore({
+    required this.databaseUrl,
+    required this.authToken,
+    this.boardId = 'main',
+    this.boardTitle = 'Meu quadro',
+  });
 
   factory TursoBoardStore.fromEnvironment() => TursoBoardStore(
         databaseUrl: const String.fromEnvironment('TURSO_DATABASE_URL'),
         authToken: const String.fromEnvironment('TURSO_AUTH_TOKEN'),
       );
 
-  static const boardId = 'main';
   final String databaseUrl;
   final String authToken;
+  final String boardId;
+  final String boardTitle;
   LibsqlClient? _client;
 
   @override
@@ -58,21 +65,64 @@ class TursoBoardStore implements RemoteBoardStore {
       );
       CREATE INDEX IF NOT EXISTS idx_board_items_board_updated
         ON board_items(board_id, updated_at);
-      INSERT OR IGNORE INTO boards(id, title, created_at, updated_at)
-        VALUES ('main', 'Meu quadro', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
     ''');
+    final ensureBoard = await value.prepare('''
+      INSERT OR IGNORE INTO boards(id, title, created_at, updated_at)
+      VALUES (?, ?, ?, ?)
+    ''');
+    final now = DateTime.now().toUtc().toIso8601String();
+    await ensureBoard.query(
+      positional: <Object?>[boardId, boardTitle, now, now],
+    );
+  }
+
+  Future<List<BoardInfo>> loadBoards() async {
+    if (!isConfigured) return <BoardInfo>[];
+    await initialize();
+    final rows = await client.query('''
+      SELECT id, title, created_at, updated_at
+      FROM boards
+      ORDER BY updated_at DESC
+    ''');
+    return rows
+        .map((row) => BoardInfo(
+              id: row['id']! as String,
+              title: row['title']! as String,
+              createdAt: DateTime.parse(row['created_at']! as String),
+              updatedAt: DateTime.parse(row['updated_at']! as String),
+            ))
+        .toList(growable: false);
+  }
+
+  Future<void> upsertBoard(BoardInfo board) async {
+    if (!isConfigured) return;
+    await initialize();
+    final statement = await client.prepare('''
+      INSERT INTO boards(id, title, created_at, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        title = excluded.title,
+        updated_at = excluded.updated_at
+    ''');
+    await statement.query(positional: <Object?>[
+      board.id,
+      board.title,
+      board.createdAt.toUtc().toIso8601String(),
+      board.updatedAt.toUtc().toIso8601String(),
+    ]);
   }
 
   @override
   Future<List<BoardItem>> loadItems() async {
     if (!isConfigured) return <BoardItem>[];
-    final rows = await client.query('''
+    final statement = await client.prepare('''
       SELECT id, type, x, y, width, height, rotation, content_json,
              created_at, updated_at
       FROM board_items
-      WHERE board_id = 'main' AND deleted_at IS NULL
+      WHERE board_id = ? AND deleted_at IS NULL
       ORDER BY updated_at
     ''');
+    final rows = await statement.query(positional: <Object?>[boardId]);
 
     return rows.map((row) {
       final content = Map<String, Object?>.from(
@@ -109,7 +159,7 @@ class TursoBoardStore implements RemoteBoardStore {
       INSERT INTO board_items(
         id, board_id, type, x, y, width, height, rotation,
         content_json, created_at, updated_at, deleted_at
-      ) VALUES (?, 'main', ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
       ON CONFLICT(id) DO UPDATE SET
         type = excluded.type,
         x = excluded.x,
@@ -123,6 +173,7 @@ class TursoBoardStore implements RemoteBoardStore {
     ''');
     await statement.query(positional: <Object?>[
       item.id,
+      boardId,
       item.type.name,
       item.position.dx,
       item.position.dy,
@@ -139,10 +190,12 @@ class TursoBoardStore implements RemoteBoardStore {
   Future<void> deleteItem(String id) async {
     if (!isConfigured) return;
     final statement = await client.prepare('''
-      UPDATE board_items SET deleted_at = ?, updated_at = ? WHERE id = ?
+      UPDATE board_items
+      SET deleted_at = ?, updated_at = ?
+      WHERE id = ? AND board_id = ?
     ''');
     final now = DateTime.now().toUtc().toIso8601String();
-    await statement.query(positional: <Object?>[now, now, id]);
+    await statement.query(positional: <Object?>[now, now, id, boardId]);
   }
 
   @override

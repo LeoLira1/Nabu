@@ -4,7 +4,7 @@ O Nabu é um quadro visual infinito feito em Flutter/Dart. A primeira versão é
 local-first: abre imediatamente com os dados salvos no aparelho e pode
 sincronizar os elementos com um banco Turso.
 
-## Versão 0.3.0
+## Versão 0.4.0
 
 - quadro matematicamente navegável, sem `Container` gigante;
 - pan com mouse ou toque e zoom com pinça/botões;
@@ -13,6 +13,10 @@ sincronizar os elementos com um banco Turso.
 - ancoragem individual para impedir movimentos acidentais;
 - importação de imagens com alternância entre retrato e paisagem;
 - exibição completa da imagem, sem cortar capas e documentos;
+- setas retas e curvas com rotação em passos de 45°;
+- símbolos de estrela, coração, confirmação, ideia, alerta, livro, filme e trabalho;
+- vários quadros independentes, com criação, troca e renomeação;
+- botão para sincronizar manualmente o quadro e receber mudanças de outro aparelho;
 - desfazer e refazer;
 - mini mapa;
 - persistência local;
@@ -39,6 +43,9 @@ Toque no ícone de nuvem, informe a URL e o token do banco e use **Testar
 conexão**. O Nabu cria as tabelas ausentes automaticamente com instruções
 `CREATE TABLE IF NOT EXISTS`; nenhum dado existente é apagado. Depois, toque
 em **Salvar e conectar**. O token fica no armazenamento seguro do aparelho.
+Use o botão de sincronização na barra superior para buscar alterações feitas em
+outro aparelho. O botão com o nome do quadro abre a lista de quadros e permite
+criar espaços como Trabalho, Livros e leituras e Filmes.
 
 Durante o desenvolvimento, também é possível fornecer as credenciais ao
 executar o aplicativo:

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -31,6 +32,31 @@ class DisabledRemoteStore implements RemoteBoardStore {
   Future<List<BoardItem>> loadItems() async => <BoardItem>[];
   @override
   Future<void> upsertItem(BoardItem item) async {}
+}
+
+class MemoryRemoteStore implements RemoteBoardStore {
+  MemoryRemoteStore([List<BoardItem>? initial])
+      : data = List<BoardItem>.of(initial ?? <BoardItem>[]);
+
+  List<BoardItem> data;
+
+  @override
+  bool get isConfigured => true;
+  @override
+  Future<void> close() async {}
+  @override
+  Future<void> deleteItem(String id) async {
+    data.removeWhere((item) => item.id == id);
+  }
+  @override
+  Future<void> initialize() async {}
+  @override
+  Future<List<BoardItem>> loadItems() async => List<BoardItem>.of(data);
+  @override
+  Future<void> upsertItem(BoardItem item) async {
+    data.removeWhere((value) => value.id == item.id);
+    data.add(item);
+  }
 }
 
 void main() {
@@ -116,5 +142,53 @@ void main() {
 
     expect(after.size, const Size(220, 320));
     expect(centerAfter, centerBefore);
+  });
+
+  test('adiciona seta curva e gira em passos de 45 graus', () async {
+    final controller = BoardController(
+      localStore: MemoryLocalStore(),
+      remoteStore: DisabledRemoteStore(),
+      showStarterItems: false,
+    );
+    await controller.initialize();
+
+    controller.addItem(
+      BoardItemType.arrow,
+      const Offset(10, 20),
+      content: 'curved',
+    );
+    final arrow = controller.items.single;
+    controller.rotateItem(arrow.id);
+
+    expect(arrow.type, BoardItemType.arrow);
+    expect(arrow.text, 'curved');
+    expect(controller.items.single.rotation, closeTo(math.pi / 4, .00001));
+  });
+
+  test('sincronização combina itens locais e remotos nos dois lados', () async {
+    final now = DateTime.now().toUtc();
+    BoardItem item(String id) => BoardItem(
+          id: id,
+          type: BoardItemType.symbol,
+          position: Offset.zero,
+          size: const Size(100, 100),
+          colorValue: 0xff202833,
+          text: 'star',
+          createdAt: now,
+          updatedAt: now,
+        );
+    final local = MemoryLocalStore()..data = <BoardItem>[item('local')];
+    final remote = MemoryRemoteStore(<BoardItem>[item('remote')]);
+    final controller = BoardController(
+      localStore: local,
+      remoteStore: remote,
+      showStarterItems: false,
+    );
+
+    await controller.initialize();
+
+    expect(controller.items.map((value) => value.id), containsAll(<String>['local', 'remote']));
+    expect(remote.data.map((value) => value.id), containsAll(<String>['local', 'remote']));
+    expect(controller.syncState, SyncState.synced);
   });
 }

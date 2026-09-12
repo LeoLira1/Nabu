@@ -6,8 +6,14 @@ import '../board/board_item.dart';
 import 'board_store.dart';
 
 class LocalBoardStore implements BoardStore {
-  static const _itemsKey = 'nabu.board.main.items.v1';
+  LocalBoardStore({this.boardId = 'main'});
+
+  final String boardId;
   final SharedPreferencesAsync _preferences = SharedPreferencesAsync();
+
+  String get _itemsKey => boardId == 'main'
+      ? 'nabu.board.main.items.v1'
+      : 'nabu.board.$boardId.items.v1';
 
   @override
   Future<List<BoardItem>> loadItems() async {
@@ -28,4 +34,3 @@ class LocalBoardStore implements BoardStore {
     await _preferences.setString(_itemsKey, raw);
   }
 }
-
