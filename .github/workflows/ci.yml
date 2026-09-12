@@ -13,7 +13,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -36,37 +36,5 @@ jobs:
       - name: Testes
         run: flutter test
 
-      - name: Compilar APK de produção
-        run: flutter build apk --release
-
-      - name: Preparar APK
-        run: cp build/app/outputs/flutter-apk/app-release.apk nabu-v0.1.0.apk
-
-      - name: Guardar APK no workflow
-        uses: actions/upload-artifact@v4
-        with:
-          name: nabu-v0.1.0-apk
-          path: nabu-v0.1.0.apk
-          if-no-files-found: error
-
-  release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, 'release: publish v0.1.0')
-    needs: validate
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Baixar APK validado
-        uses: actions/download-artifact@v4
-        with:
-          name: nabu-v0.1.0-apk
-
-      - name: Publicar release v0.1.0
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create v0.1.0 nabu-v0.1.0.apk \
-            --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
-            --title "Nabu v0.1.0" \
-            --notes "Primeira versão do Nabu: quadro visual infinito em Flutter, com pan e zoom, post-its, textos, formas, seleção, desfazer/refazer, minimapa, armazenamento local e integração opcional com Turso."
+      - name: Compilar APK de verificação
+        run: flutter build apk --debug
